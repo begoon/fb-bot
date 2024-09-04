@@ -1,8 +1,17 @@
 import { env } from "node:process";
 
 const PORT = env.PORT || 8000;
+
 const FB_VERIFY_TOKEN = env.FB_VERIFY_TOKEN;
-console.log({ PORT, FB_VERIFY_TOKEN });
+const FB_PAGE_ACCESS_TOKEN = env.FB_PAGE_ACCESS_TOKEN;
+const FB_GROUP_ID = env.FB_GROUP_ID;
+
+console.log({
+    PORT,
+    FB_VERIFY_TOKEN,
+    FB_GROUP_ID,
+    FB_PAGE_ACCESS_TOKEN: FB_PAGE_ACCESS_TOKEN?.slice(0, 10) + "...",
+});
 
 Deno.serve(
     {
@@ -32,7 +41,39 @@ Deno.serve(
             console.log("received message");
             const data = await request.json();
             console.log(data);
-            return new Response("OK");
+            if (data.object === "page") {
+                for (const entry of data.entry) {
+                    const webhook_event = entry.changes[0];
+                    const value = webhook_event.value;
+                    const { item, verb, thread_id } = value;
+                    if (
+                        item === "comment" &&
+                        verb === "add" &&
+                        thread_id === FB_GROUP_ID
+                    ) {
+                        const { message, comment_id, from } = value;
+
+                        console.log("received message", { message, from });
+
+                        fetch(
+                            `https://graph.facebook.com/${comment_id}/replies`,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                    message: message,
+                                    access_token: FB_PAGE_ACCESS_TOKEN,
+                                }),
+                            }
+                        )
+                            .then((response) => console.log("sent", response))
+                            .catch((error) => console.error("error", error));
+                    }
+                }
+            }
+            return new Response("EVENT_RECEIVED");
         }
         return new Response("OK");
     }
