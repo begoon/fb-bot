@@ -9,12 +9,13 @@ Deno.serve(
         port: Number(PORT),
         onListen: () => console.log(`listing on port ${PORT}`),
     },
-    (request: Request) => {
+    async (request: Request) => {
         console.log(request.method, request.url);
         const url = new URL(request.url);
+        const method = request.method;
         const params = url.searchParams;
         const path = url.pathname;
-        if (path === "/callback") {
+        if (method == "GET" && path === "/callback") {
             const mode = params.get("hub.mode");
             const token = params.get("hub.verify_token");
             const challenge = params.get("hub.challenge");
@@ -26,6 +27,12 @@ Deno.serve(
                 console.log("callback failed");
                 return new Response("failed", { status: 403 });
             }
+        }
+        if (method == "POST" && path === "/callback") {
+            console.log("received message");
+            const data = await request.json();
+            console.log(data);
+            return new Response("OK");
         }
         return new Response("OK");
     }
