@@ -13,6 +13,10 @@ console.log({
     FB_PAGE_ACCESS_TOKEN: FB_PAGE_ACCESS_TOKEN?.slice(0, 10) + "...",
 });
 
+function inspect(obj: any) {
+    return Deno.inspect(obj, { depth: 1000, colors: true, compact: false });
+}
+
 Deno.serve(
     {
         port: Number(PORT),
@@ -40,10 +44,10 @@ Deno.serve(
         if (method == "POST" && path === "/callback") {
             console.log("received message");
             const data = await request.json();
-            console.log(data);
+            console.log(inspect(data));
             if (data.object === "page") {
                 for (const entry of data.entry) {
-                    const webhook_event = entry.changes[0];
+                    const webhook_event = entry.changes.at(0);
                     const value = webhook_event.value;
                     const { item, verb, thread_id } = value;
                     if (
@@ -53,7 +57,10 @@ Deno.serve(
                     ) {
                         const { message, comment_id, from } = value;
 
-                        console.log("received message", { message, from });
+                        console.log(
+                            "received message",
+                            inspect({ message, from })
+                        );
 
                         fetch(
                             `https://graph.facebook.com/${comment_id}/replies`,
