@@ -47,36 +47,11 @@ Deno.serve(
             console.log(inspect(data));
             if (data.object === "page") {
                 for (const entry of data.entry) {
-                    const webhook_event = entry.changes.at(0);
-                    const value = webhook_event.value;
-                    const { item, verb, thread_id } = value;
-                    if (
-                        item === "comment" &&
-                        verb === "add" &&
-                        thread_id === FB_GROUP_ID
-                    ) {
-                        const { message, comment_id, from } = value;
+                    const webhook_event = entry.messaging[0];
+                    const sender_psid = webhook_event.sender.id;
 
-                        console.log(
-                            "received message",
-                            inspect({ message, from })
-                        );
-
-                        fetch(
-                            `https://graph.facebook.com/${comment_id}/replies`,
-                            {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify({
-                                    message: message,
-                                    access_token: FB_PAGE_ACCESS_TOKEN,
-                                }),
-                            }
-                        )
-                            .then((response) => console.log("sent", response))
-                            .catch((error) => console.error("error", error));
+                    if (webhook_event.message) {
+                        await handleMessage(sender_psid, webhook_event.message);
                     }
                 }
             }
@@ -85,3 +60,30 @@ Deno.serve(
         return new Response("OK");
     }
 );
+
+async function handleMessage(sender_psid: string, received_message: any) {
+    if (!received_message.text) {
+        console.error("no text message");
+        return;
+    }
+    const response = { text: `you said: ${received_message.text}` } as const;
+
+    await callSendAPI(sender_psid, response);
+}
+
+async function callSendAPI(sender_psid: string, message_response: any) {
+    const request = {
+        recipient: {
+            thread_key: FB_GROUP_ID,
+        },
+        message: message_response,
+    };
+
+    const q = "access_token=" + FB_PAGE_ACCESS_TOKEN;
+    const r = await fetch("https://graph.facebook.com/v17.0/me/messages?" + q, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+    });
+    console.log(r.status);
+}
